@@ -252,5 +252,5 @@ where
 }
 
 pub fn arrow(open: bool) -> &'static str {
-    if open { "▾" } else { "▸" }
+    if open { "⏷" } else { "⏵" }
 }
