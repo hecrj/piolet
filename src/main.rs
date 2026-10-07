@@ -19,6 +19,7 @@ use crate::item::Item;
 use crate::markdown::Markdown;
 use crate::repository::Repository;
 use crate::tool::Tool;
+use crate::widget::{arrow, collapsible, context_led, popover};
 
 use iced::gradient;
 use iced::keyboard;
@@ -1014,24 +1015,37 @@ Reply with only the summary, under 500 words. You cannot use any tools."#;
                 }
             });
 
-            let context = widget::context_led(self.context_size(), timings);
+            let context = context_led(self.context_size(), timings);
 
             row![info, models, context].spacing(10).align_y(Center)
         };
 
-        row![
-            text(self.project.to_string()).size(font::SMALL),
-            repository,
-            toggler(self.compact)
-                .label("Compact")
-                .size(font::TINY)
-                .text_size(font::SMALL)
-                .on_toggle(Message::ToggleCompact),
-            space::horizontal(),
-            server,
-        ]
-        .align_y(Center)
-        .spacing(10)
+        let menu = popover(
+            || {
+                text(self.project.to_string())
+                    .size(font::SMALL)
+                    .line_height(1.0)
+            },
+            || {
+                column![
+                    toggler(self.compact)
+                        .label("Compact")
+                        .size(font::TINY)
+                        .text_size(font::SMALL)
+                        .on_toggle(Message::ToggleCompact),
+                    rule::horizontal(1).style(rule::weak),
+                    text!("piolet {}", env!("CARGO_PKG_VERSION"))
+                        .size(font::TINY)
+                        .style(text::secondary)
+                ]
+                .width(Shrink)
+                .spacing(10)
+            },
+        );
+
+        row![menu, repository, space::horizontal(), server,]
+            .align_y(Center)
+            .spacing(10)
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -1208,11 +1222,11 @@ impl Turn {
                 } else {
                     let summary = summary(project, &messages[start..end]);
 
-                    widget::collapsible(
+                    collapsible(
                         messages.len() == end && reply.is_none(),
                         move |open| {
                             container(
-                                text!("{}  {}", summary, widget::arrow(open))
+                                text!("{}  {}", summary, arrow(open))
                                     .size(font::SMALL)
                                     .font(font::BOLD),
                             )

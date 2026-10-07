@@ -1,9 +1,11 @@
 use crate::font;
 use crate::locale;
 
+use iced::border;
 use iced::widget::operation;
-use iced::widget::{Component, button, column, component, container, scrollable, text};
-use iced::{Renderer, Theme, Widget};
+use iced::widget::{self, button, column, container, scrollable, text};
+use iced::{Theme, Widget};
+use iced_palace::widget::capsule;
 
 pub fn snap<Message>(
     animation: operation::Animation,
@@ -167,8 +169,8 @@ pub fn context_led<Message: 'static>(
                 )
                 .padding(5)
                 .style(container::rounded_box),
-                tooltip::Position::Top,
             )
+            .position(tooltip::Position::Top)
             .boxed()
         }
         _ => led.boxed(),
@@ -185,69 +187,71 @@ where
     A: Widget<Message> + 'a,
     B: Widget<Message> + 'a,
 {
-    struct Collapsible<B, C> {
-        force_open: bool,
-        base: B,
-        content: C,
-    }
+    capsule(move |open| {
+        let open = force_open || open;
 
-    #[derive(Debug, Clone)]
-    enum Event<Message> {
-        Toggle,
-        Custom(Message),
-    }
+        column![
+            button(base(open).map(capsule::Event::Message))
+                .on_press_maybe((!force_open).then_some(capsule::Event::Set(!open)))
+                .padding(0)
+                .style(move |theme: &Theme, status| button::Style {
+                    text_color: if (open && status != button::Status::Pressed)
+                        || status == button::Status::Hovered
+                    {
+                        theme.seed().text
+                    } else {
+                        theme.palette().secondary.strong.color
+                    },
+                    ..button::Style::default()
+                }),
+            open.then(&content)
+                .map(|content| content.map(capsule::Event::Message))
+        ]
+    })
+}
 
-    impl<'a, B, C, W1, W2, Message> Component<'a, Message> for Collapsible<B, C>
-    where
-        B: Fn(bool) -> W1,
-        C: Fn() -> W2,
-        W1: Widget<Message> + 'a,
-        W2: Widget<Message> + 'a,
-        Message: Clone + 'static,
-    {
-        type State = bool;
-        type Event = Event<Message>;
-
-        fn update(
-            &self,
-            state: &mut Self::State,
-            event: Self::Event,
-            _renderer: &Renderer,
-        ) -> Option<Message> {
-            match event {
-                Event::Toggle => {
-                    *state = !*state;
-                    None
-                }
-                Event::Custom(message) => Some(message),
-            }
-        }
-
-        fn view(&self, open: &bool) -> impl Widget<Self::Event> + 'a {
-            let open = self.force_open || *open;
-
-            column![
-                button((self.base)(open).map(Event::Custom))
-                    .on_press_maybe((!self.force_open).then_some(Event::Toggle))
-                    .padding(0)
-                    .style(move |theme: &Theme, status| button::Style {
-                        text_color: if open || status == button::Status::Hovered {
-                            theme.seed().text
-                        } else {
-                            theme.palette().secondary.strong.color
-                        },
-                        ..button::Style::default()
-                    }),
-                open.then(&self.content)
-                    .map(|content| content.map(Event::Custom))
-            ]
-        }
-    }
-
-    component(Collapsible {
-        force_open,
-        base,
-        content,
+pub fn popover<'a, Message, A, B>(
+    base: impl Fn() -> A + 'a,
+    popup: impl Fn() -> B + 'a,
+) -> impl Widget<Message> + 'a
+where
+    Message: Clone + 'static,
+    A: Widget<Message> + 'a,
+    B: Widget<Message> + 'a,
+{
+    capsule(move |open: bool| {
+        widget::popover(
+            button(base().map(capsule::Event::Message))
+                .on_press(capsule::Event::Set(!open))
+                .padding([4, 2])
+                .style(move |theme: &Theme, status| {
+                    if open || matches!(status, button::Status::Hovered | button::Status::Pressed) {
+                        button::Style {
+                            background: Some(
+                                if open {
+                                    theme.palette().background.weaker
+                                } else {
+                                    theme.palette().background.weakest
+                                }
+                                .color
+                                .into(),
+                            ),
+                            border: border::rounded(5),
+                            ..button::text(theme, status)
+                        }
+                    } else {
+                        button::text(theme, status)
+                    }
+                }),
+            open.then(|| {
+                container(popup().map(capsule::Event::Message))
+                    .padding(10)
+                    .style(container::bordered_box)
+            }),
+        )
+        .position(widget::popover::Position::Top)
+        .gap(10)
+        .on_close(capsule::Event::Set(false))
     })
 }
 
